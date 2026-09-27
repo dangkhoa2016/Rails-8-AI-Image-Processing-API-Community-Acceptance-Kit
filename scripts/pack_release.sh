@@ -13,10 +13,13 @@ stage="$tmp/$name"
 mkdir -p "$stage"
 
 cp -a "$root/README.md" "$root/README.vi.md" "$root/.gitignore" "$stage/"
+cp -a "$root/LICENSE" "$root/.ruby-version" "$root/wrangler.toml" "$stage/"
 cp -a "$root/assets" "$stage/"
 cp -a "$root/scripts" "$stage/"
 cp -a "$root/deploy" "$stage/"
-cp -a "$root/wrangler.toml" "$stage/"
+if [[ -d "$root/.github" ]]; then
+  cp -a "$root/.github" "$stage/"
+fi
 
 if [[ -d "$root/site" ]]; then
   cp -a "$root/site" "$stage/"

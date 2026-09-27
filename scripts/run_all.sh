@@ -30,6 +30,8 @@ fi
 
 ruby "$root/scripts/generate_report.rb"   --evidence "$out"   --out "$out"
 
+ruby "$root/scripts/finalize_evidence.rb" "$out"
+
 ruby "$root/scripts/build_site.rb"   --reports "$out"   --evidence "$out"   --out "$root/site"
 
 echo "Evidence directory: $out"
