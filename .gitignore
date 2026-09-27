@@ -1,0 +1,7 @@
+evidence/*
+!evidence/.gitkeep
+release/*
+!release/.gitkeep
+report-preview/
+site/
+dist/
