@@ -51,9 +51,10 @@ all_results = Array(summary && summary["results"]) + Array(auth && auth["results
 counts = all_results.each_with_object(Hash.new(0)) { |row, h| h[row["status"].to_s] += 1 }
 counts = (summary && summary["counts"]) || { "PASS" => 0, "FAIL" => 0, "SKIP" => 0 } if counts.empty?
 
-target = summary && summary["base_url"]
-generated = (summary && summary["generated_at_utc"]) || Time.now.utc.iso8601
 mode = evidence ? "live-evidence" : "preview"
+target_label = summary && summary["target_label"]
+target_label = mode == "preview" ? "preview / not yet bound to a live target" : "runtime-configured deployment" if target_label.to_s.empty?
+generated = (summary && summary["generated_at_utc"]) || Time.now.utc.iso8601
 
 contact = File.join(root, "assets", "input-contact-sheet.jpg")
 contact_uri = if File.file?(contact)
@@ -79,7 +80,7 @@ metadata = {
   "mode" => mode,
   "status" => status,
   "generated_at_utc" => generated,
-  "target" => target,
+  "target_label" => target_label,
   "source_repository" => source_url,
   "application_repository" => application_url,
   "counts" => {
@@ -150,7 +151,7 @@ index = <<~HTML
   #{contact_uri ? %(<img class="contact" src="#{contact_uri}" alt="Acceptance fixture contact sheet">) : ""}
 
   <section class="panel meta">
-    <div><div class="eyebrow">Target</div><code>#{CGI.escapeHTML(target.to_s.empty? ? "preview / not yet bound to a live target" : target.to_s)}</code></div>
+    <div><div class="eyebrow">Target</div><code>#{CGI.escapeHTML(target_label)}</code></div>
     <div><div class="eyebrow">Generated</div><code>#{CGI.escapeHTML(generated)}</code></div>
     <div><div class="eyebrow">Acceptance kit</div><a href="#{CGI.escapeHTML(source_url)}">#{CGI.escapeHTML(source_url)}</a></div>
     <div><div class="eyebrow">Application source</div><a href="#{CGI.escapeHTML(application_url)}">#{CGI.escapeHTML(application_url)}</a></div>
