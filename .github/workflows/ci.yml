@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Ruby acceptance kit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+
+      - name: Install libvips CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvips-tools
+          vips --version
+
+      - name: Validate Ruby and shell syntax
+        run: |
+          set -Eeuo pipefail
+          for file in scripts/*.rb; do ruby -c "$file"; done
+          for file in scripts/*.sh; do bash -n "$file"; done
+
+      - name: Enforce Ruby-only acceptance source
+        run: |
+          set -Eeuo pipefail
+          if find . -type f \( -name '*.py' -o -name '*.pyc' \) -not -path './.git/*' | grep -q .; then
+            echo "Python artifact found in Ruby-native acceptance repository." >&2
+            exit 1
+          fi
+          if grep -RInE 'python3|\.py\b' README.md README.vi.md scripts assets deploy; then
+            echo "Python reference found in Ruby-native acceptance source/docs." >&2
+            exit 1
+          fi
+
+      - name: Build preview reports
+        run: |
+          ruby scripts/generate_report.rb \
+            --preview \
+            --out /tmp/report-preview
+          test -s /tmp/report-preview/report.html
+          test -s /tmp/report-preview/report-compact.html
+          test -s /tmp/report-preview/gallery.html
+          grep -q 'PREVIEW / NO LIVE EVIDENCE' /tmp/report-preview/report.html
+
+      - name: Build portable static site
+        run: |
+          ruby scripts/build_site.rb \
+            --reports /tmp/report-preview \
+            --out /tmp/site
+          test -s /tmp/site/index.html
+          test -s /tmp/site/metadata.json
+          test -s /tmp/site/SHA256SUMS
+          test "$(ruby -rjson -e 'puts JSON.parse(File.read("/tmp/site/metadata.json")).fetch("status")')" = "PREVIEW"
+
+      - name: Export Hugging Face Static Space
+        run: |
+          ruby scripts/export_huggingface_space.rb \
+            --site /tmp/site \
+            --out /tmp/huggingface-space
+          grep -q '^sdk: static$' /tmp/huggingface-space/README.md
+          grep -q '^app_file: index.html$' /tmp/huggingface-space/README.md
+          test -s /tmp/huggingface-space/index.html
+
+      - name: Prevent deployment URL literals in tracked source
+        run: |
+          set -Eeuo pipefail
+          if git grep -nE 'https?://[^[:space:]]*\.modal\.run/?' -- .; then
+            echo "Provider deployment URL literal found in tracked source." >&2
+            exit 1
+          fi
+          echo "TRACKED_DEPLOYMENT_URL_SCAN=PASS"
+
+      - name: Scan generated public artifacts for secrets
+        run: |
+          set -Eeuo pipefail
+          if grep -RInE \
+            'ghp_[A-Za-z0-9]{20,}|Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._-]{20,}|@outlook\.com' \
+            /tmp/report-preview /tmp/site /tmp/huggingface-space; then
+            echo "Potential secret material detected in generated public artifacts." >&2
+            exit 1
+          fi
+          echo "PUBLIC_ARTIFACT_SECRET_SCAN=PASS"
